@@ -32,11 +32,14 @@ const SendMail = defineAsyncComponent(() => {
 
 const { t } = useScopedI18n('views.Index')
 
-const fetchMailData = async (limit, offset) => {
+const fetchMailData = async (limit, offset, view) => {
   if (mailIdQuery.value > 0) {
     const singleMail = await api.fetch(`/api/mail/${mailIdQuery.value}`);
     if (singleMail) return { results: [singleMail], count: 1 };
     return { results: [], count: 0 };
+  }
+  if (view && view !== 'all') {
+    return await api.fetch(`/api/mail_view?limit=${limit}&offset=${offset}&view=${view}`)
   }
   return await api.fetch(`/api/mails?limit=${limit}&offset=${offset}`);
 };
@@ -44,6 +47,26 @@ const fetchMailData = async (limit, offset) => {
 const deleteMail = async (curMailId) => {
   await api.fetch(`/api/mails/${curMailId}`, { method: 'DELETE' });
 };
+
+const updateMailRead = async (ids, read) => {
+  return await api.fetch('/api/mails/read', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids, read })
+  })
+}
+
+const markAllRead = async () => {
+  return await api.fetch('/api/mails/read-all', { method: 'PATCH' })
+}
+
+const updateMailFlag = async (ids, flag) => {
+  return await api.fetch('/api/mails/flag', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids, flag })
+  })
+}
+
+const fetchMailViews = async () => await api.fetch('/api/mail_views')
 
 const deleteSenboxMail = async (curMailId) => {
   await api.fetch(`/api/sendbox/${curMailId}`, { method: 'DELETE' });
@@ -127,7 +150,10 @@ onMounted(() => {
           </div>
           <MailBox :key="mailBoxKey" :showEMailTo="false" :showReply="openSettings.enableSendMail" :showSaveS3="openSettings.isS3Enabled"
             :saveToS3="saveToS3" :enableUserDeleteEmail="openSettings.enableUserDeleteEmail"
-            :fetchMailData="fetchMailData" :deleteMail="deleteMail" :showFilterInput="true" />
+            :fetchMailData="fetchMailData" :deleteMail="deleteMail" :showFilterInput="true"
+            :enableMailReadStatus="openSettings.enableMailReadStatus" :enableMailFlag="openSettings.enableMailFlag"
+            :updateMailRead="updateMailRead" :markAllRead="markAllRead" :updateMailFlag="updateMailFlag"
+            :fetchMailViews="fetchMailViews" />
         </n-tab-pane>
         <n-tab-pane v-if="openSettings.enableSendMail" name="sendbox" :tab="t('sendbox')">
           <SendBox :fetchMailData="fetchSenboxData" :enableUserDeleteEmail="openSettings.enableUserDeleteEmail"

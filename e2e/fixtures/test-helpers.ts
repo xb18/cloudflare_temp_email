@@ -7,7 +7,9 @@ export const WORKER_URL_SUBDOMAIN = process.env.WORKER_URL_SUBDOMAIN || '';
 export const WORKER_URL_ENV_OFF = process.env.WORKER_URL_ENV_OFF || '';
 export const WORKER_GZIP_URL = process.env.WORKER_GZIP_URL || '';
 export const WORKER_URL_SEND_MAIL_DOMAIN = process.env.WORKER_URL_SEND_MAIL_DOMAIN || '';
+export const WORKER_MAIL_FLAGS_URL = process.env.WORKER_MAIL_FLAGS_URL || '';
 export const FRONTEND_URL = process.env.FRONTEND_URL!;
+export const FRONTEND_MAIL_FLAGS_URL = process.env.FRONTEND_MAIL_FLAGS_URL || '';
 export const MAILPIT_API = process.env.MAILPIT_API!;
 export const TEST_DOMAIN = 'test.example.com';
 
@@ -27,10 +29,11 @@ export function hashPassword(password: string): string {
 export async function createTestAddress(
   ctx: APIRequestContext,
   name: string,
-  domain: string = TEST_DOMAIN
+  domain: string = TEST_DOMAIN,
+  workerUrl: string = WORKER_URL,
 ): Promise<{ jwt: string; address: string; address_id: number }> {
   const uniqueName = `${name}${Date.now()}`;
-  const res = await ctx.post(`${WORKER_URL}/api/new_address`, {
+  const res = await ctx.post(`${workerUrl}/api/new_address`, {
     data: { name: uniqueName, domain },
   });
   if (!res.ok()) {
@@ -47,7 +50,8 @@ export async function createTestAddress(
 export async function seedTestMail(
   ctx: APIRequestContext,
   address: string,
-  opts: { subject?: string; html?: string; text?: string; from?: string }
+  opts: { subject?: string; html?: string; text?: string; from?: string },
+  workerUrl: string = WORKER_URL,
 ): Promise<void> {
   const from = opts.from || `sender@${TEST_DOMAIN}`;
   const subject = opts.subject || 'Test Email';
@@ -75,7 +79,7 @@ export async function seedTestMail(
     `--${boundary}--`,
   ].join('\r\n');
 
-  const res = await ctx.post(`${WORKER_URL}/admin/test/receive_mail`, {
+  const res = await ctx.post(`${workerUrl}/admin/test/receive_mail`, {
     data: { from, to: address, raw },
   });
   if (!res.ok()) {
@@ -268,9 +272,10 @@ export async function deleteAddressSender(
  */
 export async function deleteAddress(
   ctx: APIRequestContext,
-  jwt: string
+  jwt: string,
+  workerUrl: string = WORKER_URL,
 ): Promise<void> {
-  const res = await ctx.delete(`${WORKER_URL}/api/delete_address`, {
+  const res = await ctx.delete(`${workerUrl}/api/delete_address`, {
     headers: { Authorization: `Bearer ${jwt}` },
   });
   if (!res.ok()) {

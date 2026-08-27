@@ -13,6 +13,7 @@ import AiExtractInfo from "./AiExtractInfo.vue";
 
 const message = useMessage()
 const isMobile = useIsMobile()
+const { t } = useScopedI18n('components.MailBox')
 
 const props = defineProps({
   enableUserDeleteEmail: {
@@ -55,9 +56,35 @@ const props = defineProps({
     default: false,
     required: false
   },
+  enableMailReadStatus: {
+    type: Boolean,
+    default: false
+  },
+  enableMailFlag: {
+    type: Boolean,
+    default: false
+  },
+  updateMailRead: {
+    type: Function,
+    default: () => ({ results: [] })
+  },
+  markAllRead: {
+    type: Function,
+    default: () => ({})
+  },
+  updateMailFlag: {
+    type: Function,
+    default: () => ({ results: [] })
+  },
+  fetchMailViews: {
+    type: Function,
+    default: () => ({ results: [] })
+  },
 })
 
 const localFilterKeyword = ref('')
+const mailView = ref('all')
+const mailViews = ref([])
 
 const {
   isDark, mailboxSplitSize, mailListView, mailListPreviewLineClamp, indexTab, loading, useUTCDate,
@@ -66,6 +93,7 @@ const {
 const autoRefreshInterval = ref(configAutoRefreshInterval.value)
 const rawData = ref([])
 const timer = ref(null)
+const curMail = ref(null)
 
 const count = ref(0)
 const page = ref(1)
@@ -94,6 +122,42 @@ const data = computed(() => {
   });
 })
 
+const mailViewOptions = computed(() => mailViews.value.map(view => ({
+  label: t(view.label_key),
+  value: view.value,
+})))
+
+const updateReadStatus = async (mail, read) => {
+  if (!mail || !props.enableMailReadStatus) return
+  const response = await props.updateMailRead([mail.id], read)
+  const result = response?.results?.[0]
+  if (result) mail.is_unread = result.is_unread
+}
+
+const openMail = async (mail) => {
+  curMail.value = mail
+  if (mail?.is_unread === 1) await updateReadStatus(mail, true)
+}
+
+const toggleCurrentMailUnread = async () => {
+  if (!curMail.value) return
+  await updateReadStatus(curMail.value, curMail.value.is_unread === 1)
+}
+
+const toggleCurrentMailFlag = async () => {
+  if (!curMail.value || !props.enableMailFlag) return
+  const flag = curMail.value.mail_flag === 1 ? 'none' : 'flagged'
+  const response = await props.updateMailFlag([curMail.value.id], flag)
+  const result = response?.results?.[0]
+  if (result) curMail.value.mail_flag = result.mail_flag
+}
+
+const markAllMailsRead = async () => {
+  await props.markAllRead()
+  message.success(t('success'))
+  await backFirstPageAndRefresh()
+}
+
 const canGoPrevMail = computed(() => {
   if (!curMail.value) return false
   const currentIndex = data.value.findIndex(mail => mail.id === curMail.value.id)
@@ -111,12 +175,12 @@ const prevMail = async () => {
   const currentIndex = data.value.findIndex(mail => mail.id === curMail.value.id)
 
   if (currentIndex > 0) {
-    curMail.value = data.value[currentIndex - 1]
+    await openMail(data.value[currentIndex - 1])
   } else if (page.value > 1) {
     page.value--
     await refresh()
     if (data.value.length > 0) {
-      curMail.value = data.value[data.value.length - 1]
+      await openMail(data.value[data.value.length - 1])
     }
   }
 }
@@ -126,25 +190,21 @@ const nextMail = async () => {
   const currentIndex = data.value.findIndex(mail => mail.id === curMail.value.id)
 
   if (currentIndex < data.value.length - 1) {
-    curMail.value = data.value[currentIndex + 1]
+    await openMail(data.value[currentIndex + 1])
   } else if (count.value > page.value * pageSize.value) {
     page.value++
     await refresh()
     if (data.value.length > 0) {
-      curMail.value = data.value[0]
+      await openMail(data.value[0])
     }
   }
 }
-
-const curMail = ref(null);
 
 const multiActionMode = ref(false)
 const showMultiActionDownload = ref(false)
 const showMultiActionDelete = ref(false)
 const multiActionDownloadZip = ref({})
 const multiActionDeleteProgress = ref({ percentage: 0, tip: '0/0' })
-
-const { t } = useScopedI18n('components.MailBox')
 
 const setupAutoRefresh = async (autoRefresh) => {
   // auto refresh every configAutoRefreshInterval seconds
@@ -175,19 +235,32 @@ watch([page, pageSize], async ([page, pageSize], [oldPage, oldPageSize]) => {
   }
 })
 
+watch(mailView, async (_view, oldView) => {
+  if (oldView === undefined) return
+  await backFirstPageAndRefresh()
+})
+
+watch(
+  [() => props.enableMailReadStatus, () => props.enableMailFlag],
+  async ([readEnabled, flagEnabled]) => {
+    if (!readEnabled && !flagEnabled) return
+    const { results = [] } = await props.fetchMailViews()
+    mailViews.value = results
+  },
+  { immediate: true }
+)
+
 const refresh = async () => {
   try {
     const { results, count: totalCount } = await props.fetchMailData(
-      pageSize.value, (page.value - 1) * pageSize.value
+      pageSize.value, (page.value - 1) * pageSize.value, mailView.value
     );
     loading.value = true;
     rawData.value = await Promise.all(results.map(async (item) => {
       item.checked = false;
       return await processItem(item);
     }));
-    if (totalCount > 0) {
-      count.value = totalCount;
-    }
+    count.value = totalCount;
     curMail.value = null;
     if (!isMobile.value && !mailListView.value && data.value.length > 0) {
       curMail.value = data.value[0];
@@ -215,7 +288,7 @@ const clickRow = async (row) => {
     curMail.value = null;
     return;
   }
-  curMail.value = row;
+  await openMail(row);
 };
 
 
@@ -381,6 +454,11 @@ onBeforeUnmount(() => {
           <n-button @click="backFirstPageAndRefresh" type="primary" tertiary>
             {{ t('refresh') }}
           </n-button>
+          <n-button v-if="enableMailReadStatus" @click="markAllMailsRead" tertiary>
+            {{ t('markAllRead') }}
+          </n-button>
+          <n-select v-if="mailViews.length > 1" v-model:value="mailView" :options="mailViewOptions"
+            style="width: 120px" />
           <n-input v-if="showFilterInput" v-model:value="localFilterKeyword"
             :placeholder="t('keywordQueryTip')" style="width: 200px; display: flex; align-items: center;"
             clearable />
@@ -397,7 +475,7 @@ onBeforeUnmount(() => {
           <div style="overflow: auto; min-height: 60vh; max-height: 100vh;">
             <n-list hoverable clickable>
               <n-list-item v-for="row in data" v-bind:key="row.id" @click="() => clickRow(row)"
-                :class="mailItemClass(row)">
+                :class="[mailItemClass(row), { 'mail-list-unread': enableMailReadStatus && row.is_unread === 1 }]">
                 <template #prefix v-if="multiActionMode">
                   <n-checkbox v-model:checked="row.checked" />
                 </template>
@@ -461,6 +539,8 @@ onBeforeUnmount(() => {
             style="overflow: auto; max-height: 100vh;">
             <MailContentRenderer :mail="curMail" :showEMailTo="showEMailTo"
               :enableUserDeleteEmail="enableUserDeleteEmail" :showReply="showReply" :showSaveS3="showSaveS3"
+              :enableMailReadStatus="enableMailReadStatus" :enableMailFlag="enableMailFlag"
+              :onToggleUnread="toggleCurrentMailUnread" :onToggleFlag="toggleCurrentMailFlag"
               :onDelete="deleteMail" :onReply="replyMail" :onForward="forwardMail" :onSaveToS3="saveToS3Proxy" />
           </n-card>
           <n-card :bordered="false" embedded class="mail-item" v-else>
@@ -475,7 +555,7 @@ onBeforeUnmount(() => {
       <div v-else class="mail-list-scroll">
         <n-list hoverable clickable>
           <n-list-item v-for="row in data" v-bind:key="row.id" @click="() => clickRow(row)"
-            :class="mailItemClass(row)">
+            :class="[mailItemClass(row), { 'mail-list-unread': enableMailReadStatus && row.is_unread === 1 }]">
             <template #prefix v-if="multiActionMode">
               <n-checkbox v-model:checked="row.checked" />
             </template>
@@ -529,14 +609,21 @@ onBeforeUnmount(() => {
         <n-button @click="backFirstPageAndRefresh" tertiary size="small" type="primary">
           {{ t('refresh') }}
         </n-button>
+        <n-button v-if="enableMailReadStatus" @click="markAllMailsRead" tertiary size="small">
+          {{ t('markAllRead') }}
+        </n-button>
       </n-space>
+      <div v-if="mailViews.length > 1" style="padding: 8px 10px 0;">
+        <n-select v-model:value="mailView" :options="mailViewOptions" size="small" />
+      </div>
       <div v-if="showFilterInput" style="padding: 0 10px; margin-top: 8px; margin-bottom: 10px;">
         <n-input v-model:value="localFilterKeyword"
           :placeholder="t('keywordQueryTip')" size="small" clearable />
       </div>
       <div style="overflow: auto; min-height: 60vh; max-height: 100vh;">
         <n-list hoverable clickable>
-          <n-list-item v-for="row in data" v-bind:key="row.id" @click="() => clickRow(row)">
+          <n-list-item v-for="row in data" v-bind:key="row.id" @click="() => clickRow(row)"
+            :class="{ 'mail-list-unread': enableMailReadStatus && row.is_unread === 1 }">
             <n-thing :title="row.subject">
               <template #description>
                 <n-tag type="info">
@@ -567,6 +654,8 @@ onBeforeUnmount(() => {
           <n-card :bordered="false" embedded style="overflow: auto;">
             <MailContentRenderer :mail="curMail" :showEMailTo="showEMailTo"
               :enableUserDeleteEmail="enableUserDeleteEmail" :showReply="showReply" :showSaveS3="showSaveS3"
+              :enableMailReadStatus="enableMailReadStatus" :enableMailFlag="enableMailFlag"
+              :onToggleUnread="toggleCurrentMailUnread" :onToggleFlag="toggleCurrentMailFlag"
               :useUTCDate="useUTCDate" :onDelete="deleteMail" :onReply="replyMail" :onForward="forwardMail"
               :onSaveToS3="saveToS3Proxy" />
           </n-card>
@@ -674,6 +763,10 @@ onBeforeUnmount(() => {
 
 .mail-list-scroll :deep(.n-list-item__main) {
   min-width: 0;
+}
+
+.mail-list-unread :deep(.n-thing-header__title) {
+  font-weight: 700;
 }
 
 pre {

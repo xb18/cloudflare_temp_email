@@ -50,10 +50,40 @@ const fetchMails = async () => {
         totalCount.value = count > 0 ? count : totalCount.value;
         const rawMail = results && results.length > 0 ? results[0] : null
         currentMail.value = rawMail ? await processItem(rawMail) : null
+        if (currentMail.value?.is_unread === 1 && openSettings.value.enableMailReadStatus) {
+            await updateCurrentMailRead(true)
+        }
     } catch (error) {
         console.error('Failed to fetch mails:', error)
         message.error('获取邮件失败')
     }
+}
+
+const updateCurrentMailRead = async (read) => {
+    if (!currentMail.value) return
+    const response = await api.fetch('/api/mails/read', {
+        method: 'PATCH',
+        body: JSON.stringify({ ids: [currentMail.value.id], read })
+    })
+    const result = response.results?.[0]
+    if (result) currentMail.value.is_unread = result.is_unread
+}
+
+const toggleCurrentMailUnread = async () => {
+    await updateCurrentMailRead(currentMail.value?.is_unread === 1)
+}
+
+const toggleCurrentMailFlag = async () => {
+    if (!currentMail.value) return
+    const response = await api.fetch('/api/mails/flag', {
+        method: 'PATCH',
+        body: JSON.stringify({
+            ids: [currentMail.value.id],
+            flag: currentMail.value.mail_flag === 1 ? 'none' : 'flagged',
+        })
+    })
+    const result = response.results?.[0]
+    if (result) currentMail.value.mail_flag = result.mail_flag
 }
 
 // 删除邮件
@@ -220,6 +250,9 @@ onBeforeUnmount(() => {
                     <div style="margin-top: 16px;">
                         <MailContentRenderer :mail="currentMail" :showEMailTo="false" :showReply="false"
                             :enableUserDeleteEmail="openSettings.enableUserDeleteEmail" :showSaveS3="false"
+                            :enableMailReadStatus="openSettings.enableMailReadStatus"
+                            :enableMailFlag="openSettings.enableMailFlag"
+                            :onToggleUnread="toggleCurrentMailUnread" :onToggleFlag="toggleCurrentMailFlag"
                             :onDelete="deleteMail" />
                     </div>
                 </div>

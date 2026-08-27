@@ -49,6 +49,18 @@ print(response.json())
 
 **Note**: Keyword filtering has been removed from the backend API. If you need to filter emails by content, please use the frontend filter input in the UI, which filters the currently displayed page.
 
+## Mail State API
+
+Enable `ENABLE_MAIL_READ_STATUS` or `ENABLE_MAIL_FLAG` and upgrade the database first. Historical mail defaults to read with no flag; newly received mail defaults to unread while read tracking is enabled.
+
+- `GET /api/mail_views`: list available views; the User JWT equivalent is `/user_api/mail_views`
+- `GET /api/mail_view?view=all|unread|read|flagged&limit=20&offset=0`: query a view; the User JWT equivalent is `/user_api/mail_view` and accepts `address`
+- `PATCH /api/mails/read`: body `{ "ids": [1], "read": true }`
+- `PATCH /api/mails/read-all`: mark the current address as read
+- `PATCH /api/mails/flag`: body `{ "ids": [1], "flag": "flagged" }`; use `none` to clear it
+
+User JWT endpoints use the same suffix under `/user_api`. A state update accepts at most 100 mail IDs.
+
 ## Admin Get Mail API
 
 Fetch a single mail by mail ID without a mailbox JWT. Authenticate with `x-admin-auth`.

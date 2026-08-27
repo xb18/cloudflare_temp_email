@@ -99,6 +99,8 @@ const getOpenSettings = async (message, notification) => {
             disableAnonymousUserCreateEmail: res["disableAnonymousUserCreateEmail"] || false,
             disableCustomAddressName: res["disableCustomAddressName"] || false,
             enableUserDeleteEmail: res["enableUserDeleteEmail"] || false,
+            enableMailReadStatus: res["enableMailReadStatus"] === true,
+            enableMailFlag: res["enableMailFlag"] === true,
             enableAutoReply: res["enableAutoReply"] || false,
             enableIndexAbout: res["enableIndexAbout"] || false,
             copyright: res["copyright"] || openSettings.value.copyright,

@@ -59,6 +59,21 @@ if [ -n "${WORKER_GZIP_URL:-}" ]; then
   done
 fi
 
+if [ -n "${WORKER_MAIL_FLAGS_URL:-}" ]; then
+  echo "==> Waiting for mail-flags worker at $WORKER_MAIL_FLAGS_URL ..."
+  for i in $(seq 1 60); do
+    if curl -sf "$WORKER_MAIL_FLAGS_URL/health_check" > /dev/null 2>&1; then
+      echo "    Mail-flags worker ready after ${i}s"
+      break
+    fi
+    if [ "$i" -eq 60 ]; then
+      echo "ERROR: Mail-flags worker not ready after 60s"
+      exit 1
+    fi
+    sleep 1
+  done
+fi
+
 echo "==> Waiting for frontend at $FRONTEND_URL ..."
 for i in $(seq 1 60); do
   if curl -skf "$FRONTEND_URL" > /dev/null 2>&1; then
@@ -71,6 +86,21 @@ for i in $(seq 1 60); do
   fi
   sleep 1
 done
+
+if [ -n "${FRONTEND_MAIL_FLAGS_URL:-}" ]; then
+  echo "==> Waiting for mail-flags frontend at $FRONTEND_MAIL_FLAGS_URL ..."
+  for i in $(seq 1 60); do
+    if curl -skf "$FRONTEND_MAIL_FLAGS_URL" > /dev/null 2>&1; then
+      echo "    Mail-flags frontend ready after ${i}s"
+      break
+    fi
+    if [ "$i" -eq 60 ]; then
+      echo "ERROR: Mail-flags frontend not ready after 60s"
+      exit 1
+    fi
+    sleep 1
+  done
+fi
 
 echo "==> Waiting for smtp-proxy-tls SMTP on $SMTP_PROXY_TLS_HOST:$SMTP_PROXY_TLS_SMTP_PORT ..."
 for i in $(seq 1 30); do
@@ -108,6 +138,13 @@ if [ -n "${WORKER_GZIP_URL:-}" ]; then
   curl -sf -X POST "$WORKER_GZIP_URL/admin/db_initialize" > /dev/null
   curl -sf -X POST "$WORKER_GZIP_URL/admin/db_migration" > /dev/null
   echo "    Gzip worker database initialized"
+fi
+
+if [ -n "${WORKER_MAIL_FLAGS_URL:-}" ]; then
+  echo "==> Initializing mail-flags worker database"
+  curl -sf -X POST "$WORKER_MAIL_FLAGS_URL/admin/db_initialize" > /dev/null
+  curl -sf -X POST "$WORKER_MAIL_FLAGS_URL/admin/db_migration" > /dev/null
+  echo "    Mail-flags worker database initialized"
 fi
 
 echo "==> Running Playwright tests"

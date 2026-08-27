@@ -336,6 +336,36 @@ export const checkIsAdmin = (c: Context<HonoCustomType>): boolean => {
     return !!adminAuth && adminPasswords.includes(adminAuth);
 }
 
+type RawMailContent = { raw: string } | { rawBlob: ArrayBuffer };
+
+export const insertRawMail = (
+    env: Bindings,
+    source: string,
+    address: string,
+    messageId: string | null,
+    content: RawMailContent,
+): Promise<D1Result> => {
+    const isUnread = getBooleanValue(env.ENABLE_MAIL_READ_STATUS);
+    if ('rawBlob' in content) {
+        if (isUnread) {
+            return env.DB.prepare(
+                `INSERT INTO raw_mails (source, address, raw_blob, message_id, is_unread) VALUES (?, ?, ?, ?, 1)`
+            ).bind(source, address, content.rawBlob, messageId).run();
+        }
+        return env.DB.prepare(
+            `INSERT INTO raw_mails (source, address, raw_blob, message_id) VALUES (?, ?, ?, ?)`
+        ).bind(source, address, content.rawBlob, messageId).run();
+    }
+    if (isUnread) {
+        return env.DB.prepare(
+            `INSERT INTO raw_mails (source, address, raw, message_id, is_unread) VALUES (?, ?, ?, ?, 1)`
+        ).bind(source, address, content.raw, messageId).run();
+    }
+    return env.DB.prepare(
+        `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
+    ).bind(source, address, content.raw, messageId).run();
+}
+
 export const getEnvStringList = (value: string | string[] | undefined): string[] => {
     if (!value) {
         return [];
@@ -381,29 +411,29 @@ export const sendAdminInternalMail = async (
             }
             if (compressed) {
                 try {
-                    ({ success } = await c.env.DB.prepare(
-                        `INSERT INTO raw_mails (source, address, raw_blob, message_id) VALUES (?, ?, ?, ?)`
-                    ).bind("admin@internal", toMail, compressed, message_id).run());
+                    ({ success } = await insertRawMail(
+                        c.env, "admin@internal", toMail, message_id, { rawBlob: compressed }
+                    ));
                 } catch (dbError) {
                     const errMsg = String(dbError);
-                    if (errMsg.includes('raw_blob') || errMsg.includes('no such column')) {
+                    if (errMsg.includes('raw_blob')) {
                         console.error("raw_blob column missing, falling back to plaintext", dbError);
-                        ({ success } = await c.env.DB.prepare(
-                            `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-                        ).bind("admin@internal", toMail, rawText, message_id).run());
+                        ({ success } = await insertRawMail(
+                            c.env, "admin@internal", toMail, message_id, { raw: rawText }
+                        ));
                     } else {
                         throw dbError;
                     }
                 }
             } else {
-                ({ success } = await c.env.DB.prepare(
-                    `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-                ).bind("admin@internal", toMail, rawText, message_id).run());
+                ({ success } = await insertRawMail(
+                    c.env, "admin@internal", toMail, message_id, { raw: rawText }
+                ));
             }
         } else {
-            ({ success } = await c.env.DB.prepare(
-                `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-            ).bind("admin@internal", toMail, rawText, message_id).run());
+            ({ success } = await insertRawMail(
+                c.env, "admin@internal", toMail, message_id, { raw: rawText }
+            ));
         }
         if (!success) {
             console.log(`Failed save message from admin@internal to ${toMail}`);

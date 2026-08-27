@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const WORKER_BASE = process.env.WORKER_URL!;
 const WORKER_GZIP_BASE = process.env.WORKER_GZIP_URL || '';
 const FRONTEND_BASE = process.env.FRONTEND_URL!;
+const FRONTEND_MAIL_FLAGS_BASE = process.env.FRONTEND_MAIL_FLAGS_URL || '';
 
 export default defineConfig({
   timeout: 30_000,
@@ -38,6 +39,22 @@ export default defineConfig({
         baseURL: FRONTEND_BASE,
         ...devices['Desktop Chrome'],
         // Accept self-signed cert from Docker frontend (HTTPS for WebAuthn)
+        ignoreHTTPSErrors: true,
+      },
+    },
+    {
+      name: 'api-mail-flags',
+      testDir: './tests/api-mail-flags',
+      use: {
+        baseURL: process.env.WORKER_MAIL_FLAGS_URL || '',
+      },
+    },
+    {
+      name: 'browser-mail-flags',
+      testDir: './tests/browser-mail-flags',
+      use: {
+        baseURL: FRONTEND_MAIL_FLAGS_BASE,
+        ...devices['Desktop Chrome'],
         ignoreHTTPSErrors: true,
       },
     },

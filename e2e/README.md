@@ -32,6 +32,8 @@ The exit code reflects the test result.
 |---------|-----------|---------------|
 | `api` | `tests/api/` | Worker API endpoints — health check, address CRUD, send mail via SMTP |
 | `browser` | `tests/browser/` | Frontend UI — login, inbox view, reply with HTML, XSS sanitization |
+| `api-mail-flags` | `tests/api-mail-flags/` | Read/unread and Flagged APIs on the dedicated mail-state Worker |
+| `browser-mail-flags` | `tests/browser-mail-flags/` | Mail-state UI on the dedicated mail-state frontend |
 
 ## Services
 
@@ -41,6 +43,8 @@ The exit code reflects the test result.
 | Mailpit HTTP | `mailpit` | 8025 | API to verify captured emails |
 | Worker | `worker` | 8787 | Backend API with E2E config |
 | Frontend | `frontend` | 5173 | Vue frontend dev server |
+| Mail-state Worker | `worker-mail-flags` | 8792 | Backend with only the mail-state feature enabled |
+| Mail-state frontend | `frontend-mail-flags` | 5174 | Frontend connected to the mail-state Worker |
 
 ## Test Results
 

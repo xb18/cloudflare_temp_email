@@ -213,6 +213,8 @@ export type RawMailRow = {
     raw?: string;
     raw_blob?: unknown;
     metadata?: string;
+    is_unread?: number;
+    mail_flag?: number;
     created_at?: string;
 }
 

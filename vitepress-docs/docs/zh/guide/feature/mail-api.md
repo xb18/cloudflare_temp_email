@@ -49,6 +49,18 @@ print(response.json())
 
 **注意**：后端 API 已移除关键词过滤功能。如需按内容过滤邮件，请使用前端界面的过滤输入框，该功能可过滤当前显示的页面。
 
+## 邮件状态 API
+
+启用 `ENABLE_MAIL_READ_STATUS` 或 `ENABLE_MAIL_FLAG` 并升级数据库后可使用。历史邮件默认为已读且无 Flag，新邮件在已读功能开启时默认为未读。
+
+- `GET /api/mail_views`：获取可用视图；用户 JWT 对应 `/user_api/mail_views`
+- `GET /api/mail_view?view=all|unread|read|flagged&limit=20&offset=0`：查询视图；用户 JWT 对应 `/user_api/mail_view`，支持 `address`
+- `PATCH /api/mails/read`：请求体 `{ "ids": [1], "read": true }`
+- `PATCH /api/mails/read-all`：当前地址全部已读
+- `PATCH /api/mails/flag`：请求体 `{ "ids": [1], "flag": "flagged" }`；使用 `none` 取消
+
+用户 JWT 接口使用相同路径并替换 `/api` 为 `/user_api`。单次状态更新最多包含 100 个邮件 ID。
+
 ## admin 获取单封邮件 API
 
 无需邮箱 JWT，通过邮件 ID 获取单封邮件，并使用 `x-admin-auth` 认证。

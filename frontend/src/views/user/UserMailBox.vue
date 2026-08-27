@@ -20,7 +20,13 @@ const queryMail = () => {
     mailBoxKey.value = Date.now();
 }
 
-const fetchMailData = async (limit, offset) => {
+const fetchMailData = async (limit, offset, view) => {
+    const addressQuery = addressFilter.value ? `&address=${encodeURIComponent(addressFilter.value)}` : ''
+    if (view && view !== 'all') {
+        return await api.fetch(
+            `/user_api/mail_view?limit=${limit}&offset=${offset}&view=${view}${addressQuery}`
+        )
+    }
     return await api.fetch(
         `/user_api/mails`
         + `?limit=${limit}`
@@ -50,6 +56,27 @@ const deleteMail = async (curMailId) => {
     await api.fetch(`/user_api/mails/${curMailId}`, { method: 'DELETE' });
 };
 
+const updateMailRead = async (ids, read) => {
+    return await api.fetch('/user_api/mails/read', {
+        method: 'PATCH',
+        body: JSON.stringify({ ids, read })
+    })
+}
+
+const markAllRead = async () => {
+    const query = addressFilter.value ? `?address=${encodeURIComponent(addressFilter.value)}` : ''
+    return await api.fetch(`/user_api/mails/read-all${query}`, { method: 'PATCH' })
+}
+
+const updateMailFlag = async (ids, flag) => {
+    return await api.fetch('/user_api/mails/flag', {
+        method: 'PATCH',
+        body: JSON.stringify({ ids, flag })
+    })
+}
+
+const fetchMailViews = async () => await api.fetch('/user_api/mail_views')
+
 watch(addressFilter, async (newValue) => {
     queryMail();
 });
@@ -70,6 +97,9 @@ onMounted(() => {
         </n-input-group>
         <div style="margin-top: 10px;"></div>
         <MailBox :key="mailBoxKey" :enableUserDeleteEmail="openSettings.enableUserDeleteEmail" :fetchMailData="fetchMailData"
-            :deleteMail="deleteMail" :showFilterInput="true" />
+            :deleteMail="deleteMail" :showFilterInput="true"
+            :enableMailReadStatus="openSettings.enableMailReadStatus" :enableMailFlag="openSettings.enableMailFlag"
+            :updateMailRead="updateMailRead" :markAllRead="markAllRead" :updateMailFlag="updateMailFlag"
+            :fetchMailViews="fetchMailViews" />
     </div>
 </template>

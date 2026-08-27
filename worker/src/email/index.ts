@@ -1,6 +1,6 @@
 import { Context } from "hono";
 
-import { getBooleanValue, getJsonSetting, normalizeAddressDomain } from "../utils";
+import { getBooleanValue, getJsonSetting, insertRawMail, normalizeAddressDomain } from "../utils";
 import { sendMailToTelegram } from "../telegram_api";
 import { auto_reply } from "./auto_reply";
 import { isBlocked } from "./black_list";
@@ -77,38 +77,33 @@ async function email(message: ForwardableEmailMessage, env: Bindings, ctx: Execu
             }
             if (compressed) {
                 try {
-                    ({ success } = await env.DB.prepare(
-                        `INSERT INTO raw_mails (source, address, raw_blob, message_id) VALUES (?, ?, ?, ?)`
-                    ).bind(
-                        message.from, toAddress, compressed, message_id
-                    ).run());
+                    ({ success } = await insertRawMail(
+                        env, message.from, toAddress, message_id, { rawBlob: compressed }
+                    ));
                 } catch (dbError) {
                     // Fallback to plaintext only if raw_blob column is missing (migration not applied)
                     const errMsg = String(dbError);
-                    if (errMsg.includes('raw_blob') || errMsg.includes('no such column')) {
+                    if (errMsg.includes('raw_blob')) {
                         console.error("raw_blob column missing, falling back to plaintext", dbError);
-                        ({ success } = await env.DB.prepare(
-                            `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-                        ).bind(
-                            message.from, toAddress, parsedEmailContext.rawEmail, message_id
-                        ).run());
+                        ({ success } = await insertRawMail(
+                            env, message.from, toAddress, message_id,
+                            { raw: parsedEmailContext.rawEmail }
+                        ));
                     } else {
                         throw dbError;
                     }
                 }
             } else {
-                ({ success } = await env.DB.prepare(
-                    `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-                ).bind(
-                    message.from, toAddress, parsedEmailContext.rawEmail, message_id
-                ).run());
+                ({ success } = await insertRawMail(
+                    env, message.from, toAddress, message_id,
+                    { raw: parsedEmailContext.rawEmail }
+                ));
             }
         } else {
-            ({ success } = await env.DB.prepare(
-                `INSERT INTO raw_mails (source, address, raw, message_id) VALUES (?, ?, ?, ?)`
-            ).bind(
-                message.from, toAddress, parsedEmailContext.rawEmail, message_id
-            ).run());
+            ({ success } = await insertRawMail(
+                env, message.from, toAddress, message_id,
+                { raw: parsedEmailContext.rawEmail }
+            ));
         }
         if (!success) {
             message.setReject(`Failed save message to ${toAddress}`);
